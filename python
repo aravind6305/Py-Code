@@ -1,0 +1,62 @@
+import re
+import csv
+from collections import Counter, defaultdict
+FAILED_LOGIN_THRESHOLD = 10
+LOG_FILE = "sample.log"
+CSV_FILE = "log_analysis_results.csv"
+def parse_log_file(log_file):
+    """Parses the log file and returns extracted data."""
+    ip_requests = Counter()
+    endpoint_requests = Counter()
+    failed_logins = defaultdict(int)
+    with open(log_file, 'r') as file:
+        log_lines = file.readlines()
+    log_pattern = re.compile(
+        r"(?P<ip>\d+\.\d+\.\d+\.\d+) .*? \"(?P<method>\w+) (?P<endpoint>\S+) HTTP/.*?\" (?P<status>\d+)"
+    )
+    for line in log_lines:
+        match = log_pattern.search(line)
+        if match:
+            ip = match.group("ip")
+            endpoint = match.group("endpoint")
+            status = int(match.group("status"))
+            ip_requests[ip] += 1
+            endpoint_requests[endpoint] += 1
+            if status == 401:
+                failed_logins[ip] += 1
+    return ip_requests, endpoint_requests, failed_logins
+def write_to_csv(ip_requests, most_accessed_endpoint, suspicious_activities, csv_file):
+    """Writes the analysis results to a CSV file."""
+    with open(csv_file, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["IP Address", "Request Count"])
+        for ip, count in ip_requests.items():
+            writer.writerow([ip, count])
+        writer.writerow([])
+        writer.writerow(["Most Accessed Endpoint", "Access Count"])
+        writer.writerow(most_accessed_endpoint)
+        writer.writerow([])
+        writer.writerow(["Suspicious Activity Detected"])
+        writer.writerow(["IP Address", "Failed Login Attempts"])
+        for ip, count in suspicious_activities:
+            writer.writerow([ip, count])
+def main():
+    ip_requests, endpoint_requests, failed_logins = parse_log_file(LOG_FILE)
+    most_accessed_endpoint = max(endpoint_requests.items(), key=lambda x: x[1])
+    suspicious_activities = [
+        (ip, count) for ip, count in failed_logins.items() if count > FAILED_LOGIN_THRESHOLD
+    ]
+    print("IP Address Requests:")
+    print("IP Address           Request Count")
+    for ip, count in ip_requests.most_common():
+        print(f"{ip:<20} {count}")
+    print("\nMost Frequently Accessed Endpoint:")
+    print(f"{most_accessed_endpoint[0]} (Accessed {most_accessed_endpoint[1]} times)")
+    print("\nSuspicious Activity Detected:")
+    print("IP Address           Failed Login Attempts")
+    for ip, count in suspicious_activities:
+        print(f"{ip:<20} {count}")
+    write_to_csv(ip_requests, most_accessed_endpoint, suspicious_activities, CSV_FILE)
+    print(f"\nResults saved to {CSV_FILE}")
+if __name__ == "__main__":
+    main()
